@@ -8,8 +8,7 @@ import {
   ImageBackground,
   Image,
   Alert,
-  KeyboardAvoidingView,
-  ToastAndroid
+  KeyboardAvoidingView
 } from "react-native";
 import * as Permissions from "expo-permissions";
 import { BarCodeScanner } from "expo-barcode-scanner";
@@ -29,8 +28,17 @@ export default class RideScreen extends Component {
       hasCameraPermissions: null,
       scanned: false,
       bikeType: "",
-      userName: ""
+      userName: "",
+      //email: firebase.auth()
+      //email: firebase.auth().email
+      //email: firebase.auth().currentUser.email
+      //email: firebase.auth().currentUser
     };
+  }
+
+  async componentDidMount() {
+    const { email } = this.state;
+    await this.getUserDetails(email);
   }
 
   getCameraPermissions = async () => {
@@ -55,9 +63,8 @@ export default class RideScreen extends Component {
   };
 
   handleTransaction = async () => {
-    var { bikeId, userId } = this.state;
+    var { bikeId, userId, email } = this.state;
     await this.getBikeDetails(bikeId);
-    await this.getUserDetails(userId);
 
     var transactionType = await this.checkBikeAvailability(bikeId);
 
@@ -69,11 +76,14 @@ export default class RideScreen extends Component {
         bikeId: ""
       });
     } else if (transactionType === "rented") {
-      var isEligible = await this.checkUserEligibilityForStartRide(userId);
+      var isEligible = await this.checkUserEligibilityForStartRide(
+        userId,
+        email
+      );
 
       if (isEligible) {
         var { bikeType, userName } = this.state;
-        this.assignBike(bikeId, userId, bikeType, userName);
+        this.assignBike(bikeId, userId, bikeType, userName, email);
         Alert.alert(
           "You have rented the bike for next 1 hour. Enjoy your ride!!!"
         );
@@ -83,19 +93,20 @@ export default class RideScreen extends Component {
 
         // For Android users only
         // ToastAndroid.show(
-        //   "You have rented the bike for next 1 hour. Enjoy your ride!!",
+        //   "You have rented the bike for next 1 hour. Enjoy your ride!!!",
         //   ToastAndroid.SHORT
         // );
       }
     } else {
       var isEligible = await this.checkUserEligibilityForEndRide(
         bikeId,
-        userId
+        userId,
+        email
       );
 
       if (isEligible) {
         var { bikeType, userName } = this.state;
-        this.returnBike(bikeId, userId, bikeType, userName);
+        this.returnBike(bikeId, userId, bikeType, userName, email);
         Alert.alert("We hope you enjoyed your ride");
         this.setState({
           bikeAssigned: false
@@ -124,9 +135,9 @@ export default class RideScreen extends Component {
       });
   };
 
-  getUserDetails = userId => {
+  getUserDetails = email => {
     db.collection("users")
-      .where("id", "==", userId)
+      .where("email_id", "==", email)
       .get()
       .then(snapshot => {
         snapshot.docs.map(doc => {
@@ -164,10 +175,11 @@ export default class RideScreen extends Component {
     return transactionType;
   };
 
-  checkUserEligibilityForStartRide = async userId => {
+  checkUserEligibilityForStartRide = async (userId, email) => {
     const userRef = await db
       .collection("users")
       .where("id", "==", userId)
+      .where("email_id", "==", email)
       .get();
 
     var isUserEligible = false;
@@ -194,10 +206,11 @@ export default class RideScreen extends Component {
     return isUserEligible;
   };
 
-  checkUserEligibilityForEndRide = async (bikeId, userId) => {
+  checkUserEligibilityForEndRide = async (bikeId, userId, email) => {
     const transactionRef = await db
       .collection("transactions")
       .where("bike_id", "==", bikeId)
+      .where("email_id", "==", email)
       .limit(1)
       .get();
     var isUserEligible = "";
@@ -216,7 +229,7 @@ export default class RideScreen extends Component {
     return isUserEligible;
   };
 
-  assignBike = async (bikeId, userId, bikeType, userName) => {
+  assignBike = async (bikeId, userId, bikeType, userName, email) => {
     //add a transaction
     db.collection("transactions").add({
       user_id: userId,
@@ -224,7 +237,8 @@ export default class RideScreen extends Component {
       bike_id: bikeId,
       bike_type: bikeType,
       date: firebase.firestore.Timestamp.now().toDate(),
-      transaction_type: "rented"
+      transaction_type: "rented",
+      email_id: email
     });
     //change bike status
     db.collection("bicycles")
@@ -245,7 +259,7 @@ export default class RideScreen extends Component {
     });
   };
 
-  returnBike = async (bikeId, userId, bikeType, userName) => {
+  returnBike = async (bikeId, userId, bikeType, userName, email) => {
     //add a transaction
     db.collection("transactions").add({
       user_id: userId,
@@ -253,7 +267,8 @@ export default class RideScreen extends Component {
       bike_id: bikeId,
       bike_type: bikeType,
       date: firebase.firestore.Timestamp.now().toDate(),
-      transaction_type: "return"
+      transaction_type: "return",
+      email_id: email
     });
     //change bike status
     db.collection("bicycles")

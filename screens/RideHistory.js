@@ -17,38 +17,19 @@ export default class RideHistoryScreen extends Component {
     this.state = {
       allTransactions: [],
       lastVisibleTransaction: null,
-      searchText: ""
+      searchText: "",
+      email: firebase.auth().currentUser.email
     };
   }
   componentDidMount = async () => {
-    this.getTransactions();
+    const { email } = this.state;
+    this.getTransactions(email);
   };
 
-  getTransactions = () => {
+  getTransactions = email => {
     db.collection("transactions")
+      .where("email_id", "==", email)
       .limit(10)
-      .get()
-      .then(snapshot => {
-        snapshot.docs.map(doc => { 
-           this.setState({
-            allTransactions: [...this.state.allTransactions, doc.data()],
-            lastVisibleTransaction: doc
-          });
-        });
-      });
-  };
-
-  handleSearch = async bikeId => {
-    bikeId = bikeId.toUpperCase().trim();
-    this.setState({
-      allTransactions: []
-    });
-    if (!bikeId) {
-      this.getTransactions();
-    }
-
-    db.collection("transactions")
-      .where("bike_id", "==", bikeId)
       .get()
       .then(snapshot => {
         snapshot.docs.map(doc => {
@@ -60,13 +41,37 @@ export default class RideHistoryScreen extends Component {
       });
   };
 
-  fetchMoreTransactions = async bikeId => {
+  handleSearch = async (bikeId, email) => {
+    bikeId = bikeId.toUpperCase().trim();
+    this.setState({
+      allTransactions: []
+    });
+    if (!bikeId) {
+      this.getTransactions(email);
+    }
+
+    db.collection("transactions")
+      .where("bike_id", "==", bikeId)
+      .where("email_id", "==", email)
+      .get()
+      .then(snapshot => {
+        snapshot.docs.map(doc => {
+          this.setState({
+            allTransactions: [...this.state.allTransactions, doc.data()],
+            lastVisibleTransaction: doc
+          });
+        });
+      });
+  };
+
+  fetchMoreTransactions = async (bikeId, email) => {
     bikeId = bikeId.toUpperCase().trim();
 
     const { lastVisibleTransaction, allTransactions } = this.state;
     const query = await db
       .collection("transactions")
       .where("bike_id", "==", bikeId)
+      .where("email_id", "==", email)
       .startAfter(lastVisibleTransaction)
       .limit(10)
       .get();
@@ -136,7 +141,7 @@ export default class RideHistoryScreen extends Component {
   };
 
   render() {
-    const { searchText, allTransactions } = this.state;
+    const { searchText, allTransactions, email } = this.state;
     return (
       <View style={styles.container}>
         <View style={styles.upperContainer}>
@@ -149,50 +154,20 @@ export default class RideHistoryScreen extends Component {
             />
             <TouchableOpacity
               style={styles.scanbutton}
-              onPress={() => this.handleSearch(searchText)}
+              onPress={() => this.handleSearch(searchText, email)}
             >
               <Text style={styles.scanbuttonText}>Search</Text>
             </TouchableOpacity>
           </View>
         </View>
         <View style={styles.lowerContainer}>
-
-         {/* <FlatList
+          <FlatList
             data={allTransactions}
             renderItem={this.renderItem}
             keyExtractor={(item, index) => index.toString()}
-            onEndReached={() => 
-              this.fetchMoreTransactions(searchText)}
+            onEndReached={() => this.fetchMoreTransactions(searchText, email)}
             onEndReachedThreshold={0.7}
-          /> */}
-
-           {/* <FlatList
-            data=allTransactions
-            renderItem=this.renderItem
-            keyExtractor={(item, index) => index.toString()}
-            onEndReached={() => 
-              this.fetchMoreTransactions(searchText)}
-            onEndReachedThreshold={0.7}
-          /> */}
-
-           {/* <FlatList
-            data:{allTransactions}
-            renderItem:{this.renderItem}
-            keyExtractor:{(item, index) => index.toString()}
-            onEndReached:{() => 
-              this.fetchMoreTransactions(searchText)}
-            onEndReachedThreshold={0.7}
-          /> */}
-
-           {/* <FlatList
-            data={"allTransactions"}
-            renderItem={"this.renderItem"}
-            keyExtractor={(item, index) => index.toString()}
-            onEndReached=
-            {this.fetchMoreTransactions(searchText)}
-            onEndReachedThreshold={0.7}
-          /> */}
-
+          />
         </View>
       </View>
     );
